@@ -1,0 +1,2 @@
+id,name,locality,latitude,longitude,datetimeFirst,datetimeLast
+8118,US Diplomatic Post: New Delhi,Delhi,28.63576,77.22445,"{'utc': '2016-11-09T19:00:00Z', 'local': '2016-11-10T00:30:00+05:30'}","{'utc': '2025-02-12T10:30:00Z', 'local': '2025-02-12T16:00:00+05:30'}"
