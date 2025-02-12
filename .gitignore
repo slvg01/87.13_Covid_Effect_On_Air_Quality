@@ -1,3 +1,10 @@
+#exlude data folder 
+climate_data/
+pollution_data/
+
+#exlude package
+project_X1/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
