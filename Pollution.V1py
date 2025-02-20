@@ -4,6 +4,12 @@ from IPython.display import display
 import time
 
 
+# voir ce que signikfie les location is monitor  et is mobile pour les exlcure ,~
+# exclure les sans data de début mais avant test des station pour voir. 
+# faire un scope plus réduit  >> qq pays seulement 
+
+
+
 API_KEY = "01946b8515c545443cdcd262a884a88dab1be54962aad37f4f93c3420cc49844"
 headers = {"X-API-Key": API_KEY, 'Accept-Charset': 'utf-8'}
 
@@ -47,6 +53,7 @@ locations_raw = extract_data(url)
 
 df_locations_raw = pd.DataFrame(locations_raw)
 df_locations_raw.rename(columns={'id': 'location_id', 'name': 'location_name'}, inplace=True)
+df_locations_raw.to_csv('pollution_data/1_locations_raw.csv', index=True)
 
 
 
@@ -104,10 +111,10 @@ print(len(urls_list))
 # Extract monthly measurements sensor data from URLs
 data_df = pd.DataFrame()
 
-for url in urls_list[:50]: 
+for url in urls_list: 
     sensor_id = int(url.split("/")[-3])
     sensors_data = extract_data(url)
-    time.sleep(0.01)
+    time.sleep(0.1)
     
     data = []
     
@@ -151,10 +158,10 @@ else:
 
 # unpack the coverage column 
 coverage_df = pd.json_normalize(data_df['coverage'])
-data_df = pd.concat([data_df, coverage_df], axis=1).drop('coverage', axis=1)
-data_df.drop(['flagInfo', 'period', 'parameter', 'coordinates', 'expectedInterval', 'observedInterval', 'datetimeFrom.utc', 'datetimeTo.utc','q02', 'q25', 'q75', 'q98'], axis=1, inplace=True, errors='ignore')
+final_data_df = pd.concat([data_df, coverage_df], axis=1).drop('coverage', axis=1)
+final_data_df.drop(['flagInfo', 'period', 'parameter', 'coordinates', 'expectedInterval', 'observedInterval', 'datetimeFrom.utc', 'datetimeTo.utc','q02', 'q25', 'q75', 'q98'], axis=1, inplace=True, errors='ignore')
 print(len(data_df))
-data_df.to_csv('pollution_data/6_sensor_data_final.csv', index=True)
+#final_data_df.to_csv('pollution_data/6_sensor_data_final.csv', index=True)
 
 
 
