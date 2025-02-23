@@ -65,12 +65,14 @@ df_country.columns= ['country_id', 'country_code', 'country_name']
 df_coordinates.columns= ['latitude', 'longitude']
 
 df_locations_unpacked=pd.concat([df_locations_raw,df_country, df_coordinates],axis=1)
+df_locations_unpacked.to_csv('pollution_data/2_locations_unpacked.csv', index=True)
 
 
 
 # keep only useful columns
 df_locations_unpacked.drop(['owner', 'provider', 'isMobile', 'isMonitor', 'instruments', 'licenses', 'bounds', 'distance', 'country', 'coordinates'], axis=1, inplace=True,errors='ignore')
 df_locations_clean = df_locations_unpacked
+df_locations_clean.to_csv('pollution_data/3_locations_clean.csv', index=True)
 
 
 
@@ -98,14 +100,17 @@ df_exploded["parameter_name"] = df_exploded["parameter.displayName"]
 df_exploded.drop(['sensors', 'id', 'name', 'parameter.id' ,'parameter.name', 'parameter.units', 'parameter.displayName'], axis=1, inplace=True)
 #df_exploded.reset_index(drop=True, inplace=True)
 df_location_final = df_exploded
-print(len(df_location_final))
+df_location_final.to_csv('pollution_data/4_location_final.csv', index=True)
+print(f'{len(df_location_final)}')
+df_location_final_france = df_location_final[df_location_final['country_code']=='FR']
+print(f'location_france length {df_location_final_france}')
 
 
 
+'''
 # generate URLs list
 urls_list = [f"https://api.openaq.org/v3/sensors/{sensor_id}/days/monthly" for sensor_id in df_exploded['sensor_id']]
-print(len(urls_list))
-
+print(f'length url list{len(urls_list)}')
 
 
 # Extract monthly measurements sensor data from URLs
@@ -114,7 +119,7 @@ data_df = pd.DataFrame()
 for url in urls_list: 
     sensor_id = int(url.split("/")[-3])
     sensors_data = extract_data(url)
-    time.sleep(0.1)
+    time.sleep(1)
     
     data = []
     
@@ -163,5 +168,5 @@ final_data_df.drop(['flagInfo', 'period', 'parameter', 'coordinates', 'expectedI
 print(len(data_df))
 #final_data_df.to_csv('pollution_data/6_sensor_data_final.csv', index=True)
 
-
+'''
 
