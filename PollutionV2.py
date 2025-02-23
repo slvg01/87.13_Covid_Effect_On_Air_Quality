@@ -60,6 +60,8 @@ df_locations_raw.to_csv('pollution_data/1_locations_raw.csv', index=True)
 #Unpack countries and coordinates
 df_country = df_locations_raw['country'].apply(pd.Series)
 df_coordinates = df_locations_raw['coordinates'].apply(pd.Series)
+df_DatetimeFirst = df_locations_raw['DatetimeFirst'].apply(pd.Series)
+df_Datetimelast = df_locations_raw['DatetimeLastt'].apply(pd.Series)
 
 df_country.columns= ['country_id', 'country_code', 'country_name']
 df_coordinates.columns= ['latitude', 'longitude']
