@@ -2,14 +2,20 @@ import requests
 import pandas as pd
 from IPython.display import display
 import time
+import logging
 
 
 # voir ce que signikfie les location is monitor  et is mobile pour les exlcure ,~
 # exclure les sans data de début mais avant test des station pour voir. 
 # faire un scope plus réduit  >> qq pays seulement 
 
+# Configuration du logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
+# Définition des paramètres globaux
+MAX_RETRIES = 3  # Nombre max de tentatives en cas d'échec
+RETRY_DELAY = 2  # Délai entre chaque tentative (en secondes)
 API_KEY = "01946b8515c545443cdcd262a884a88dab1be54962aad37f4f93c3420cc49844"
 headers = {"X-API-Key": API_KEY, 'Accept-Charset': 'utf-8'}
 
@@ -44,6 +50,30 @@ def extract_data (url):
             
 
     return all_results 
+
+
+
+
+
+# Fonction pour extraire les données avec gestion des erreurs et retry
+def fetch_with_retry(url, max_retries=MAX_RETRIES, delay=RETRY_DELAY):
+
+    """Tente d'extraire les données d'une URL avec une gestion d'erreur en cas de dépassement de quota."""
+    retries = 0
+    while retries < max_retries:
+        try:
+            return extract_data(url)  # Fonction d'extraction des données
+        except Exception as e:
+            error_message = str(e)
+            if "Many Requests" in error_message or "429" in error_message:
+                retries += 1
+                logging.warning(f"URL échouée (tentative {retries}/{max_retries}): {url} -> {error_message}")
+                time.sleep(delay)  # Attente avant de réessayer
+            else:
+                logging.error(f"Erreur non récupérable sur {url}: {error_message}")
+                break  # Sort de la boucle en cas d'autre erreur
+    return None  # Retourne None si toutes les tentatives ont échoué
+
 
 
 
@@ -110,18 +140,32 @@ df_location_final.to_csv('pollution_data/4_location_final.csv', index=True)
 print(f'location_final lenght : {len(df_location_final)}')
 
 
+# restric to belgium geography
+df_location_final_belgium = df_location_final[df_location_final['country_code']=='BE']
+df_location_final_belgium.to_csv('pollution_data/5_location_final_belgium.csv', index=True)
+print(f'location_final_belgium_length :  {len(df_location_final_belgium)}')
+
+'''
+# restric to luxembourg geography
+df_location_final_lux = df_location_final[df_location_final['country_code']=='LU']
+df_location_final_lux.to_csv('pollution_data/5_location_final_lux.csv', index=True)
+print(f'location_final_lux length :  {len(df_location_final_lux)}')
+'''
+
+
+''' 
 # restric to france geography
 df_location_final_france = df_location_final[df_location_final['country_code']=='FR']
 df_location_final_france.to_csv('pollution_data/5_location_final_france.csv', index=True)
-print(f'location_final__france length :  {len(df_location_final_france)}')
-
+print(f'location_final_france length :  {len(df_location_final_france)}')
+'''
 
 
 # generate URLs list
-urls_list = [f"https://api.openaq.org/v3/sensors/{sensor_id}/days/monthly" for sensor_id in df_location_final_france['sensor_id']]
+urls_list = [f"https://api.openaq.org/v3/sensors/{sensor_id}/days/monthly" for sensor_id in df_location_final_belgium['sensor_id']]
 print(f'length url list : {len(urls_list)}')
 
-
+"""
 
 # Extract monthly measurements sensor data from URLs
 data_df = pd.DataFrame()
@@ -131,7 +175,7 @@ for url in urls_list:
     sensors_data = extract_data(url)
     counter += 1
     
-    time.sleep(1)
+    time.sleep(0.01)
     
     data = []
     
@@ -178,5 +222,54 @@ coverage_df = pd.json_normalize(data_df['coverage'])
 final_data_df = pd.concat([data_df, coverage_df], axis=1).drop('coverage', axis=1)
 final_data_df.drop(['flagInfo', 'period', 'parameter', 'coordinates', 'expectedInterval', 'observedInterval', 'datetimeFrom.utc', 'datetimeTo.utc','q02', 'q25', 'q75', 'q98'], axis=1, inplace=True, errors='ignore')
 print(len(data_df))
-final_data_df.to_csv('pollution_data/6_sensor_data_final.csv', index=True)
+final_data_df.to_csv('pollution_data/6_sensor_data_final.csv', index=True)"""
+
+
+
+
+# Initialisation du DataFrame principal
+data_df = pd.DataFrame()
+
+# Boucle sur les URLs
+for counter, url in enumerate(urls_list, start=1): 
+    sensor_id = int(url.split("/")[-3])
+    sensors_data = fetch_with_retry(url)
+
+    if sensors_data is None:
+        logging.error(f"Abandon de l'URL après {MAX_RETRIES} tentatives: {url}")
+        continue  # Passe à l'URL suivante si toutes les tentatives ont échoué
+    
+    time.sleep(0.01)  # Pause entre chaque requête pour éviter les limites d'API
+
+    # Ajout de l'ID du capteur aux données
+    for record in sensors_data:
+        record["sensor_id"] = sensor_id
+
+    # Conversion en DataFrame et ajout au DataFrame principal
+    data_df = pd.concat([data_df, pd.DataFrame(sensors_data)], ignore_index=True)
+    logging.info(f"URL {counter} >> Données extraites avec succès")
+
+# Décompactage des colonnes JSON si elles existent
+if 'summary' in data_df.columns:
+    data_df = pd.concat([data_df, pd.json_normalize(data_df['summary'])], axis=1).drop(columns=['summary'], errors='ignore')
+
+if 'period' in data_df.columns:
+    data_df['year'] = data_df['period'].apply(lambda x: pd.to_datetime(x['datetimeFrom']['local']).strftime('%Y') if isinstance(x, dict) else None)
+    data_df['month'] = data_df['period'].apply(lambda x: pd.to_datetime(x['datetimeFrom']['local']).strftime('%m') if isinstance(x, dict) else None)
+    data_df['day'] = data_df['period'].apply(lambda x: pd.to_datetime(x['datetimeFrom']['local']).strftime('%d') if isinstance(x, dict) else None)
+else:
+    logging.warning("La colonne 'period' est absente du DataFrame.")
+
+# Décompactage de la colonne 'coverage' si elle existe
+if 'coverage' in data_df.columns:
+    data_df = pd.concat([data_df, pd.json_normalize(data_df['coverage'])], axis=1).drop(columns=['coverage'], errors='ignore')
+
+# Suppression des colonnes inutiles
+cols_to_drop = ['flagInfo', 'period', 'parameter', 'coordinates', 'expectedInterval', 'observedInterval',
+                'datetimeFrom.utc', 'datetimeTo.utc', 'q02', 'q25', 'q75', 'q98']
+data_df.drop(columns=cols_to_drop, errors='ignore', inplace=True)
+
+# Export des données finales
+data_df.to_csv('pollution_data/6_sensor_data_final.csv', index=True)
+logging.info(f"Extraction terminée avec {len(data_df)} lignes enregistrées.")
 
