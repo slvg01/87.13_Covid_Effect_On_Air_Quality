@@ -3,34 +3,47 @@ import pandas as pd
 import time
 import logging
 
-# Configuration du logging
+
+
+
+
+# ======= LOGGING CONFIG GLOBAL PARAMTERS DEFINITION  =======
+
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Définition des paramètres globaux
-MAX_RETRIES = 1  # Nombre max de tentatives en cas d'échec
-RETRY_DELAY = 6  # Délai entre chaque tentative (en secondes)
+
+MAX_RETRIES = 2  # Max attemt in case of extraction failure
+RETRY_DELAY = 10  # Delay between each retry in case of failure (seconds)
 API_KEY = "01946b8515c545443cdcd262a884a88dab1be54962aad37f4f93c3420cc49844"
 HEADERS = {"X-API-Key": API_KEY, "Accept-Charset": "utf-8"}
 
+
+
+
+
+# ======= FUNCTIONS  DEFINITION  =======
+
+
 def extract_data(url):
-    """Extrait les données d'une URL et gère les erreurs d'API"""
+    """Extract API URL data """
     params = {"limit": 1000, "page": 1}
     all_results = []
 
     while True:
         response = requests.get(url, headers=HEADERS, params=params)
 
-        if response.status_code == 429:  # Trop de requêtes
+        if response.status_code == 429:  
             raise Exception("Too Many Requests (429)")
-
-        if response.status_code != 200:  # Autres erreurs HTTP
+           
+        if response.status_code != 200:  # Manage others HTTP errors
             raise Exception(f"Erreur HTTP {response.status_code}: {response.text}")
 
         data = response.json()
         results = data.get("results", [])
         all_results.extend(results)
 
-        if len(results) < params["limit"]:  # Fin de pagination
+        if len(results) < params["limit"]:  
             break
 
         params["page"] += 1
@@ -38,76 +51,77 @@ def extract_data(url):
     return all_results
 
 
-def fetch_with_retry(url, max_retries=MAX_RETRIES, delay=RETRY_DELAY):
+def extract_with_retry(url, max_retries=MAX_RETRIES, delay=RETRY_DELAY):
     """Gère les erreurs et applique un retry en cas d'erreur 429"""
     retries = 0
 
     while retries < max_retries:
         try:
-            return extract_data(url)  # Fonction d'extraction
+            return extract_data(url)  
         except Exception as e:
             error_message = str(e)
 
             if "Too Many Requests" in error_message or "429" in error_message:
-                retries += 1
-                logging.warning(f"⚠️ Retry {retries}/{max_retries} après erreur 429: {url}")
+                logging.warning(f"⚠️ Too Many Requests reached on url : {url}")
                 time.sleep(delay)  # Pause entre les tentatives
+                retries += 1
+                logging.warning(f"⚠️ Retry {retries}/{max_retries} after 429 error on {url}")
+                
             else:
-                logging.error(f"❌ Erreur fatale sur {url}: {error_message}")
-                return None  # Erreur irrécupérable, on abandonne
+                logging.error(f"❌ Fatal error on {url}: {error_message}")
+                return None #  others errors are fatal > out 
 
-    logging.error(f"❌ Abandon de l'URL après {max_retries} tentatives: {url}")
-    return None  # Si on a atteint max_retries, on retourne None
+    logging.error(f" ❌ Échec définitif après {MAX_RETRIES+1} tentatives: {url}")
+    return None  # max retries reached without success > out 
 
 
 
+
+
+# ======= GETTING THE LOCATION DATAFRAME & THE SENSOR URL LIST TO FETCH   =======
 
 
 # Getting worldwide sensor locations
 url= "https://api.openaq.org/v3/locations"
-locations_raw = extract_data(url)
+locations_raw = extract_with_retry(url)
 
 df_locations_raw = pd.DataFrame(locations_raw)
 df_locations_raw.rename(columns={'id': 'location_id', 'name': 'location_name'}, inplace=True)
 df_locations_raw.to_csv('pollution_data/1_locations_raw.csv', index=True)
 
 
-
-#Unpack countries and coordinates
+# Unpack countries and coordinates and time inside the Dataframe
 df_country = df_locations_raw['country'].apply(pd.Series)
 df_coordinates = df_locations_raw['coordinates'].apply(pd.Series)
 df_DatetimeFirst = df_locations_raw['datetimeFirst'].apply(pd.Series)
-df_Datetimelast = df_locations_raw['datetimeLast'].apply(pd.Series)
+df_DatetimeLast = df_locations_raw['datetimeLast'].apply(pd.Series)
 
 df_country.columns= ['country_id', 'country_code', 'country_name']
 df_coordinates.columns= ['latitude', 'longitude']
 df_DatetimeFirst.columns= ['datetimeFirst.utc', 'datetimeFirst.local']
-df_Datetimelast.columns= ['datetimeLast.utc', 'datetimeLast.local']
-df_locations_unpacked=pd.concat([df_locations_raw,df_country, df_coordinates, df_DatetimeFirst, df_Datetimelast],axis=1)
+df_DatetimeLast.columns= ['datetimeLast.utc', 'datetimeLast.local']
+df_locations_unpacked=pd.concat([df_locations_raw,df_country, df_coordinates, df_DatetimeFirst, df_DatetimeLast],axis=1)
 
 
-# Pack & clean 
+# Clean the Dataframe
 df_locations_unpacked.drop(['owner', 'provider', 'isMobile', 'isMonitor', 'instruments', 'licenses', 'bounds', 'distance', 'country', 'coordinates', 'datetimeFirst.utc', 'datetimeLast.utc'], axis=1, inplace=True,errors='ignore')
 df_locations_clean = df_locations_unpacked
 df_locations_clean.to_csv('pollution_data/2_locations_clean.csv', index=True)
 
 
-
-# Unpack  the 'sensors' list of sensors : vertically
+# Unpack  the 'sensors' list of sensors vertically
 df_exploded = df_locations_clean.explode("sensors")
 df_exploded.to_csv('pollution_data/3_exploded.csv', index=True)
 
 
-
-
-# Expand the nested dictionary structure of the 'sensors' column
+# Expand the nested dictionary structure of the 'sensors' column horizontally
 sensors_normalized = pd.json_normalize(df_exploded['sensors'])
 
 
-
-# Concatenate all dataframe
+# Aggregate both Dataframes horizontally
 df_exploded = pd.concat([df_exploded.reset_index(drop=True), sensors_normalized], axis=1)
 df_exploded.to_csv('pollution_data/4_exploded.csv', index=True)
+
 
 # Clean the DataFrame 
 df_exploded["sensor_id"] = df_exploded["id"]
@@ -118,134 +132,74 @@ df_exploded["parameter_name"] = df_exploded["parameter.displayName"]
 df_exploded["datetimeFirst_local"] = df_exploded["datetimeFirst.local"]
 df_exploded["datetimeLast_local"] = df_exploded["datetimeLast.local"]
 df_exploded.drop(['sensors', 'id', 'name', 'parameter.id' ,'parameter.name', 'parameter.units', 'parameter.displayName', 'datetimeFirst', 'datetimeLast'], axis=1, inplace=True)
-
-
-#df_exploded.reset_index(drop=True, inplace=True)
 df_location_final = df_exploded
-df_location_final.to_csv('pollution_data/4_location_final.csv', index=True)
+df_location_final.to_csv('pollution_data/5_location_final.csv', index=True)
 print(f'location_final lenght : {len(df_location_final)}')
 
-
-# restric to belgium geography
-df_location_final_belgium = df_location_final[df_location_final['country_code']=='BE']
-df_location_final_belgium.to_csv('pollution_data/5_location_final_belgium.csv', index=True)
-print(f'location_final_belgium_length :  {len(df_location_final_belgium)}')
+ 
+# Restric to france geography
+df_location_final_france = df_location_final[df_location_final['country_code']=='FR']
+df_location_final_france.to_csv('pollution_data/6_location_final_france.csv', index=True)
+print(f'location_final_france length :  {len(df_location_final_france)}')
 
 '''
+# restric to belgium geography
+df_location_final_belgium = df_location_final[df_location_final['country_code']=='BE']
+df_location_final_belgium.to_csv('pollution_data/6_location_final_belgium.csv', index=True)
+print(f'location_final_belgium_length :  {len(df_location_final_belgium)}')
+
 # restric to luxembourg geography
 df_location_final_lux = df_location_final[df_location_final['country_code']=='LU']
-df_location_final_lux.to_csv('pollution_data/5_location_final_lux.csv', index=True)
+df_location_final_lux.to_csv('pollution_data/6_location_final_lux.csv', index=True)
 print(f'location_final_lux length :  {len(df_location_final_lux)}')
 '''
 
-
-''' 
-# restric to france geography
-df_location_final_france = df_location_final[df_location_final['country_code']=='FR']
-df_location_final_france.to_csv('pollution_data/5_location_final_france.csv', index=True)
-print(f'location_final_france length :  {len(df_location_final_france)}')
-'''
-
-
-# generate URLs list
-urls_list = [f"https://api.openaq.org/v3/sensors/{sensor_id}/days/monthly" for sensor_id in df_location_final_belgium['sensor_id']]
+# Generate URLs list
+urls_list = [f"https://api.openaq.org/v3/sensors/{sensor_id}/days/monthly" for sensor_id in df_location_final_france['sensor_id']]
 print(f'length url list : {len(urls_list)}')
 
-"""
-
-# Extract monthly measurements sensor data from URLs
-data_df = pd.DataFrame()
-counter = 0
-for url in urls_list: 
-    sensor_id = int(url.split("/")[-3])
-    sensors_data = extract_data(url)
-    counter += 1
-    
-    time.sleep(0.01)
-    
-    data = []
-    
-    # Iterate through the extracted data and append sensor_id to each record
-    for record in sensors_data:
-        record["sensor_id"] = sensor_id
-        data.append(record)
-    
-    # Convert the list to a DataFrame and 
-    data_df_url = pd.DataFrame(data)
-    
-    # Append the current URL's data to the main DataFrame
-    data_df = pd.concat([data_df, data_df_url], ignore_index=True)
-    print(f"URL {counter} >> data extracted ")
-
-
-# Unpack the 'summary' column
-if 'summary' in data_df.columns:
-    summary_df = pd.json_normalize(data_df['summary'])
-    data_df = pd.concat([data_df, summary_df], axis=1).drop('summary', axis=1)
 
 
 
-# Extract year,  month, day frol local time column 
-if 'period' in data_df.columns:
-    data_df['year'] = data_df['period'].apply(
-        lambda x: pd.to_datetime(x['datetimeFrom']['local']).strftime('%Y') if isinstance(x, dict) and 'datetimeFrom' in x else None
-    )
-    data_df['month'] = data_df['period'].apply(
-        lambda x: pd.to_datetime(x['datetimeFrom']['local']).strftime('%m') if isinstance(x, dict) and 'datetimeFrom' in x else None
-    )
+# ======= LOOP ON URLs LIST TO EXTRACT SENSOR DATA =======
 
-    data_df['day'] = data_df['period'].apply(
-        lambda x: pd.to_datetime(x['datetimeFrom']['local']).strftime('%d') if isinstance(x, dict) and 'datetimeFrom' in x else None
-    )
-
-else:
-    print("The 'period' column is missing in the DataFrame.")
-
-
-
-# unpack the coverage column 
-coverage_df = pd.json_normalize(data_df['coverage'])
-final_data_df = pd.concat([data_df, coverage_df], axis=1).drop('coverage', axis=1)
-final_data_df.drop(['flagInfo', 'period', 'parameter', 'coordinates', 'expectedInterval', 'observedInterval', 'datetimeFrom.utc', 'datetimeTo.utc','q02', 'q25', 'q75', 'q98'], axis=1, inplace=True, errors='ignore')
-print(len(data_df))
-final_data_df.to_csv('pollution_data/6_sensor_data_final.csv', index=True)"""
-
-
-
-
-# Initialisation du DataFrame principal
 data_df = pd.DataFrame()
 
-# Boucle sur les URLs
+
 for counter, url in enumerate(urls_list, start=1):
     sensor_id = int(url.split("/")[-3])
-    sensors_data = fetch_with_retry(url)
+    sensors_data = extract_with_retry(url)
 
     if sensors_data is None:
-        logging.error(f" ❌ Échec définitif après {MAX_RETRIES} tentatives: {url}")
-        continue  # Passe à l'URL suivante si toutes les tentatives ont échoué
+        logging.error(f"❌ Abandonning URL: {url}")
+        continue  
 
-   #time.sleep(2)  # Pause entre chaque requête pour éviter les limites d'API
-
-    # Ajout de l'ID du capteur aux données
+  
+    # Add sendor ID to the data
     for record in sensors_data:
         record["sensor_id"] = sensor_id
 
-    # Conversion en DataFrame et ajout au DataFrame principal
+    # Dataframe conversion and appending
     data_df = pd.concat([data_df, pd.DataFrame(sensors_data)], ignore_index=True)
-    logging.info(f"✅ URL {counter}, for sensor id {sensor_id} >> Données extraites avec succès")
+    logging.info(f"✅ URL {counter}, for sensor id {sensor_id} >> Data extracted sucessfully :)")
+
+
+    # Impose time delay to avoud API limit (60 call/s and 2K calls/h)
+    time.sleep(0.65)  
 
 
 
 
-# ======= TRANSFORMATIONS DES DONNÉES =======
+# ======= DATA FINAL TRANSFORMATION =======
 
-# Décompactage de la colonne 'summary' si elle existe
+# Unpack Summary column
 if 'summary' in data_df.columns:
     summary_df = pd.json_normalize(data_df['summary'])
     data_df = pd.concat([data_df, summary_df], axis=1).drop(columns=['summary'], errors='ignore')
+else:
+    logging.warning("the column 'summary' is missing in the DataFrame.")
 
-# Extraction des années, mois et jours depuis la colonne 'period'
+# Unpack Period column (time data) 
 if 'period' in data_df.columns:
     data_df['year'] = data_df['period'].apply(
         lambda x: pd.to_datetime(x['datetimeFrom']['local']).strftime('%Y') if isinstance(x, dict) and 'datetimeFrom' in x else None
@@ -257,14 +211,16 @@ if 'period' in data_df.columns:
         lambda x: pd.to_datetime(x['datetimeFrom']['local']).strftime('%d') if isinstance(x, dict) and 'datetimeFrom' in x else None
     )
 else:
-    logging.warning("La colonne 'period' est absente du DataFrame.")
+    logging.warning("the column 'period' is missing in the DataFrame.")
 
-# Décompactage de la colonne 'coverage' si elle existe
+# Unpack coverage column
 if 'coverage' in data_df.columns:
     coverage_df = pd.json_normalize(data_df['coverage'])
     data_df = pd.concat([data_df, coverage_df], axis=1).drop(columns=['coverage'], errors='ignore')
+else:
+    logging.warning("the column 'coverage' is missing in the DataFrame.")
 
-# Suppression des colonnes inutiles
+# Kill useless columns
 cols_to_drop = ['flagInfo', 'period', 'parameter', 'coordinates', 'expectedInterval', 'observedInterval',
                 'datetimeFrom.utc', 'datetimeTo.utc', 'q02', 'q25', 'q75', 'q98']
 data_df.drop(columns=cols_to_drop, errors='ignore', inplace=True)
@@ -272,7 +228,9 @@ data_df.drop(columns=cols_to_drop, errors='ignore', inplace=True)
 
 
 
-# ======= EXPORT DES DONNÉES =======
+# ======= FINAL EXPORT =======
 
 data_df.to_csv("pollution_data/6_sensor_data_final.csv", index=True)
-logging.info(f"✅ Extraction terminée avec {len(data_df)} lignes enregistrées.")
+logging.info(f"✅ Extraction completed with {len(data_df)} lines recorded for {data_df['sensor_id'].nunique()} sensors.")
+print(f'length data_df : {len(data_df)}')
+print(f'length sensor_id : {data_df["sensor_id"].nunique()}')
