@@ -65,7 +65,7 @@ def fetch_with_retry(url, max_retries=MAX_RETRIES, delay=RETRY_DELAY):
             return extract_data(url)  # Fonction d'extraction des données
         except Exception as e:
             error_message = str(e)
-            if "Many Requests" in error_message or "429" in error_message:
+            if "many requests" in error_message or "429" in error_message:
                 retries += 1
                 logging.warning(f"URL échouée (tentative {retries}/{max_retries}): {url} -> {error_message}")
                 time.sleep(delay)  # Attente avant de réessayer
