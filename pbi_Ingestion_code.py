@@ -1,7 +1,7 @@
 import requests
 import pandas as pd
 import time
-
+import logging
 
 
 
@@ -124,7 +124,7 @@ df_exploded["units"] = df_exploded["parameter.units"]
 df_exploded["parameter_name"] = df_exploded["parameter.displayName"]
 df_exploded["datetimeFirst_local"] = df_exploded["datetimeFirst.local"]
 df_exploded["datetimeLast_local"] = df_exploded["datetimeLast.local"]
-df_exploded.drop(['sensors', 'id', 'name', 'parameter.id' ,'parameter.name', 'parameter.units', 'parameter.displayName', 'datetimeFirst', 'datetimeLast'], axis=1, inplace=True)
+df_exploded.drop(['sensors', 'id', 'name', 'parameter.id' ,'parameter.name', 'parameter.units', 'parameter.displayName', 'datetimeFirst.local', 'datetimeLast.local'], axis=1, inplace=True)
 df_location_final = df_exploded
 
 
@@ -134,13 +134,13 @@ df_location_final = df_exploded
 
 
 # restric to luxembourg geography
-df_location_final_lux = df_location_final[df_location_final['country_code']=='LU']
+df_location_final_be = df_location_final[df_location_final['country_code']=='BE']
 
 
 
 
 # Generate URLs list
-urls_list = [f"https://api.openaq.org/v3/sensors/{sensor_id}/days/monthly" for sensor_id in df_location_final_lux['sensor_id']]
+urls_list = [f"https://api.openaq.org/v3/sensors/{sensor_id}/days/monthly" for sensor_id in df_location_final_be['sensor_id']]
 
 
 
@@ -165,7 +165,7 @@ for counter, url in enumerate(urls_list, start=1):
 
     # Dataframe conversion and appending
     data_df = pd.concat([data_df, pd.DataFrame(sensors_data)], ignore_index=True)
-
+    logging.info(f"✅ URL {counter}, for sensor id {sensor_id} >> Data extracted sucessfully :)")
 
 
     # Impose time delay to avoud API limit (60 call/s and 2K calls/h)

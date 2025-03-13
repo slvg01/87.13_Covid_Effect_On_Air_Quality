@@ -134,23 +134,23 @@ df_exploded["datetimeLast_local"] = df_exploded["datetimeLast.local"]
 df_exploded.drop(['sensors', 'id', 'name', 'parameter.id' ,'parameter.name', 'parameter.units', 'parameter.displayName', 'datetimeFirst', 'datetimeLast'], axis=1, inplace=True)
 df_location_final = df_exploded
 df_location_final.to_csv('pollution_data/5_location_final.csv', index=True)
-print(f'location_final lenght : {len(df_location_final)}')
+print(f'location_final lenght b4 geo restriction: {len(df_location_final)}')
 
 
 
 # ========== RESTRICT GEO IF NEEDED & GET SENSOR URL LIST TO FETCH ===========
-'''
 
-# restric to luxembourg geography
-df_location_final_lux = df_location_final[df_location_final['country_code']=='LU']
-df_location_final_lux.to_csv('pollution_data/6_location_final_lux.csv', index=True)
-print(f'location_final_lux length :  {len(df_location_final_lux)}')
 
-'''
+# restric  geography if needed
+df_location_final_be = df_location_final[df_location_final['country_code']=='IT']
+df_location_final_be.to_csv('pollution_data/6_location_final_geo.csv', index=True)
+print(f'location_final_length :  {len(df_location_final_be)}')
+
+
 
 
 # Generate URLs list
-urls_list = [f"https://api.openaq.org/v3/sensors/{sensor_id}/days/monthly" for sensor_id in df_location_final['sensor_id']]
+urls_list = [f"https://api.openaq.org/v3/sensors/{sensor_id}/days/monthly" for sensor_id in df_location_final_be['sensor_id']]
 print(f'length url list : {len(urls_list)}')
 
 
