@@ -31,4 +31,4 @@ The pollution markers CO, NO₂, and PM10 represent different air pollutants tha
 ✅ A **short video** showing the map animation related to pollution evolution over time
 ✅ The  **requirement.txt** file that gives the necessary library to install ti run teh script
 
-📌 **Repository:** [GitHub - 13_Covid_Effect_On_Air_Quality](https://github.com/slvg01/13_Covid_Effect_On_Air_Quality) 🚀
+📌 **Python Version:** 3.12.9
