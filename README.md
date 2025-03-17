@@ -25,11 +25,11 @@ The pollution markers CO, NO₂, and PM10 represent different air pollutants tha
 
 ---
 ## 📂 You Will Find:
-✅ The **Python code** to get and clean the data through API
-✅ The **cleaned/simplified Python code** that can be ingested into powerbi to run the API call and cleaning
-✅ The **.pbix Power BI file**
-✅ A **PDF export** of the Power BI dashboard
-✅ A **short video** showing the map animation related to pollution evolution over time
-✅ The  **requirement.txt** file that gives the necessary library to install ti run teh script
+✅ The **Python code** to get and clean the data through API  
+✅ The **cleaned/simplified Python code** that can be ingested into powerbi to run the API call and cleaning  
+✅ The **.pbix Power BI file**  
+✅ A **PDF export** of the Power BI dashboard  
+✅ A **short video** showing the map animation related to pollution evolution over time  
+✅ The  **requirement.txt** file that gives the necessary library to install ti run teh script  
 
 📌 **Python Version:** 3.12.9
