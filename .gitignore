@@ -2,6 +2,9 @@
 climate_data/
 pollution_data/
 
+#exclude pbix files
+*.pbix
+
 #exlude package
 project_X1/
 
