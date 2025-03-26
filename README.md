@@ -29,7 +29,7 @@ The pollution markers CO, NO₂, and PM10 represent different air pollutants tha
 ✅ A **PDF export** of the Power BI dashboard itself  [(covid_effect.pdf)](https://github.com/slvg01/13_Covid_Effect_On_Air_Quality/blob/main/Covid_Effect.pdf)  
 ✅ The **Python code** to get and clean the data through API  
 ✅ The **cleaned/simplified Python code** that can be ingested into powerbi to run the API call and cleaning  
-✅ The  **requirement.txt** file that gives the necessary library to install ti run teh script  
+✅ The  **requirement.txt** file that gives the necessary library to install to run the  script  
 
 📌 **Python Version:** 3.12.9
 
